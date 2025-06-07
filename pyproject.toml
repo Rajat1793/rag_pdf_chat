@@ -1,0 +1,20 @@
+[project]
+name = "pdf-chat-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb>=1.0.12",
+    "dotenv>=0.9.9",
+    "faiss-cpu>=1.11.0",
+    "langchain-community>=0.3.24",
+    "langchain-google-genai>=2.1.5",
+    "langchain-qdrant>=0.2.0",
+    "langchain-text-splitters>=0.3.8",
+    "openai>=1.84.0",
+    "pathlib>=1.0.1",
+    "pypdf>=5.6.0",
+    "python-dotenv>=1.1.0",
+    "streamlit>=1.45.1",
+]
