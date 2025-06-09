@@ -21,7 +21,7 @@ collection_name = "pdf_chat_collection"
 
 if uploaded_file and process_button:
     with st.spinner("Processing PDF..."):
-        vector_db = process_pdf(uploaded_file.name, collection_name)
+        vector_db = process_pdf(uploaded_file, collection_name)
         if vector_db is not None:
             st.sidebar.success("PDF processed and indexed!")
             st.session_state.vector_db = vector_db
