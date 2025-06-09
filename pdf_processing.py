@@ -7,7 +7,8 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import os
 import streamlit as st
 
-embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+api_key = os.getenv("GEMINI_API_KEY")
+embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004",api_key=api_key)
 
 def process_pdf(file_name, collection_name):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
