@@ -1,109 +1,145 @@
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from dotenv import load_dotenv
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 import os
+import tempfile
+from dotenv import load_dotenv
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_qdrant import QdrantVectorStore
+from openai import OpenAI
+from qdrant_client import QdrantClient
+import hashlib
 
 load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
-def get_vectorstore_from_url(url):
-    # get the text in document form
-    loader = WebBaseLoader(url)
-    document = loader.load()
-    
-    # split the document into chunks
-    text_splitter = RecursiveCharacterTextSplitter()
-    document_chunks = text_splitter.split_documents(document)
-    
-    # create a vectorstore from the chunks using Gemini embeddings
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    vector_store = Chroma.from_documents(
-        document_chunks,
-        GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", api_key=api_key)
-    )
+def get_url_hash(url):
+    return hashlib.md5(url.encode()).hexdigest()
 
-    return vector_store
-
-def get_context_retriever_chain(vector_store):
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=api_key)
-    
-    retriever = vector_store.as_retriever()
-    
-    prompt = ChatPromptTemplate.from_messages([
-      MessagesPlaceholder(variable_name="chat_history"),
-      ("user", "{input}"),
-      ("user", "Given the above conversation, generate a search query to look up in order to get information relevant to the conversation")
-    ])
-    
-    retriever_chain = create_history_aware_retriever(llm, retriever, prompt)
-    
-    return retriever_chain
-    
-def get_conversational_rag_chain(retriever_chain): 
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=api_key)
-    
-    prompt = ChatPromptTemplate.from_messages([
-      ("system", "Answer the user's questions based on the below context:\n\n{context}"),
-      MessagesPlaceholder(variable_name="chat_history"),
-      ("user", "{input}"),
-    ])
-    
-    stuff_documents_chain = create_stuff_documents_chain(llm, prompt)
-    
-    return create_retrieval_chain(retriever_chain, stuff_documents_chain)
-
-def get_response(user_input):
-    retriever_chain = get_context_retriever_chain(st.session_state.vector_store)
-    conversation_rag_chain = get_conversational_rag_chain(retriever_chain)
-    
-    response = conversation_rag_chain.invoke({
-        "chat_history": st.session_state.chat_history,
-        "input": user_input
-    })
-    
-    return response['answer']
+def collection_exists(qdrant_url, qdrant_api_key, collection_name):
+    client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+    collections = client.get_collections().collections
+    return any(col.name == collection_name for col in collections)
 
 def website_chat_workflow():
-    # st.set_page_config(page_title="Chat with websites", page_icon="🤖")
-    st.title("Chat with websites")
+    st.title("Chat with Website")
 
-    # sidebar
-    with st.sidebar:
-        st.header("Settings")
-        website_url = st.text_input("Website URL")
+    url = st.text_input("Enter website URL to chat with:")
+    process_button = st.button("Process Website")
+    if "chat_ready" not in st.session_state:
+        st.session_state.chat_ready = False
+    if "vector_db" not in st.session_state:
+        st.session_state.vector_db = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "show_chat" not in st.session_state:
+        st.session_state.show_chat = False
 
-    if website_url is None or website_url == "":
-        st.info("Please enter a website URL")
-    else:
-        # session state
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = [
-                AIMessage(content="Hello, I am a bot. How can I help you?"),
+    if url and process_button:
+        url_hash = get_url_hash(url)
+        collection_name = f"website_{url_hash}"
+
+        embedding_model = GoogleGenerativeAIEmbeddings(
+            model="models/text-embedding-004",
+            api_key=GOOGLE_API_KEY
+        )
+
+        if collection_exists(QDRANT_URL, QDRANT_API_KEY, collection_name):
+            st.success("Website already processed. Using existing embeddings.")
+            st.session_state.vector_db = QdrantVectorStore.from_existing_collection(
+                url=QDRANT_URL,
+                api_key=QDRANT_API_KEY,
+                collection_name=collection_name,
+                embedding=embedding_model,
+            )
+            st.session_state.chat_ready = True
+            st.session_state.show_chat = False
+            st.rerun()
+        else:
+            with st.spinner("Loading and embedding website content..."):
+                loader = WebBaseLoader(url)
+                docs = loader.load()
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+                split_docs = text_splitter.split_documents(docs)
+
+                # Limit number of chunks to avoid timeout
+                MAX_CHUNKS = 20
+                if len(split_docs) > MAX_CHUNKS:
+                    st.warning(f"Website is large; only processing the first {MAX_CHUNKS} chunks to avoid timeout.")
+                    split_docs = split_docs[:MAX_CHUNKS]
+
+                try:
+                    vector_db = QdrantVectorStore.from_documents(
+                        documents=split_docs,
+                        embedding=embedding_model,
+                        url=QDRANT_URL,
+                        api_key=QDRANT_API_KEY,
+                        collection_name=collection_name,
+                        force_recreate=False
+                    )
+                    st.success("Website processed and indexed!")
+                    st.session_state.vector_db = vector_db
+                    st.session_state.chat_ready = True
+                    st.session_state.show_chat = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error during embedding or Qdrant upload: {e}")
+
+    if st.session_state.chat_ready:
+        chat_button = st.button("Chat with Website")
+        if chat_button:
+            st.session_state.show_chat = True
+
+    if st.session_state.show_chat:
+        handle_website_chat()
+
+def handle_website_chat():
+    client = OpenAI(
+        api_key=os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY"),
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+
+    st.subheader("Ask a question about the website")
+    user_query = st.text_input("You:", key="website_user_input")
+
+    if user_query:
+        search_results = st.session_state.vector_db.similarity_search(query=user_query)
+        context = "\n\n\n".join([
+            f"Content: {result.page_content}\nSource: {result.metadata.get('source', 'N/A')}"
+            for result in search_results
+        ])
+
+        SYSTEM_PROMPT = f'''
+        You are a helpful AI Assistant who answers user queries based on the available context
+        retrieved from the website.
+
+        Context:
+        {context}
+        '''
+
+        response = client.chat.completions.create(
+            model='gemini-2.0-flash',
+            messages=[
+                {'role': 'system', 'content': SYSTEM_PROMPT},
+                {'role': 'user', 'content': user_query}
             ]
-        if "vector_store" not in st.session_state or st.session_state.get("last_url") != website_url:
-            st.session_state.vector_store = get_vectorstore_from_url(website_url)
-            st.session_state.last_url = website_url
+        )
 
-        # user input
-        user_query = st.chat_input("Type your message here...")
-        if user_query is not None and user_query != "":
-            response = get_response(user_query)
-            st.session_state.chat_history.append(HumanMessage(content=user_query))
-            st.session_state.chat_history.append(AIMessage(content=response))
+        answer = response.choices[0].message.content
+        st.session_state.chat_history.append(("user", user_query))
+        st.session_state.chat_history.append(("assistant", answer))
 
-        # conversation
-        for message in st.session_state.chat_history:
-            if isinstance(message, AIMessage):
-                with st.chat_message("AI"):
-                    st.write(message.content)
-            elif isinstance(message, HumanMessage):
-                with st.chat_message("Human"):
-                    st.write(message.content)
+    # Display chat history (newest at top)
+    for role, msg in reversed(st.session_state.chat_history):
+        if role == "user":
+            st.markdown(f"**You:** {msg}")
+        else:
+            st.markdown(f"**Assistant:** {msg}")
+
+    if st.button("Export Chat History"):
+        with open("website_chat_history.txt", "w") as f:
+            for role, msg in st.session_state.chat_history:
+                f.write(f"{role.capitalize()}: {msg}\n")
+        st.download_button("Download Chat History", "website_chat_history.txt")
