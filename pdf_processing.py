@@ -9,10 +9,10 @@ import streamlit as st
 
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
-def process_pdf(file_bytes, file_hash, file_name, collection_name):
+def process_pdf(file_name, collection_name):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(file_bytes)
-        tmp_path = Path(tmp_file.name)
+        tmp_file.write(file_name.read())
+        tmp_path = tmp_file.name
 
     loader = PyPDFLoader(tmp_path)
     docs = loader.load()
