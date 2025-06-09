@@ -21,11 +21,11 @@ def process_pdf(uploaded_file, collection_name):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     split_docs = text_splitter.split_documents(docs)
 
-    # Limit number of chunks to avoid timeout
-    MAX_CHUNKS = 20
-    if len(split_docs) > MAX_CHUNKS:
-        st.warning(f"PDF is large; only processing the first {MAX_CHUNKS} chunks to avoid timeout.")
-        split_docs = split_docs[:MAX_CHUNKS]
+    # # Limit number of chunks to avoid timeout
+    # MAX_CHUNKS = 20
+    # if len(split_docs) > MAX_CHUNKS:
+    #     st.warning(f"PDF is large; only processing the first {MAX_CHUNKS} chunks to avoid timeout.")
+    #     split_docs = split_docs[:MAX_CHUNKS]
 
     qdrant_url = os.getenv("QDRANT_URL")
     qdrant_api_key = os.getenv("QDRANT_API_KEY")
