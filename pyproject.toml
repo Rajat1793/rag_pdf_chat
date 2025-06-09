@@ -5,10 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.13.4",
     "chromadb>=1.0.12",
     "dotenv>=0.9.9",
     "faiss-cpu>=1.11.0",
+    "langchain>=0.3.25",
     "langchain-community>=0.3.24",
+    "langchain-core>=0.3.64",
     "langchain-google-genai>=2.1.5",
     "langchain-qdrant>=0.2.0",
     "langchain-text-splitters>=0.3.8",
@@ -16,5 +19,6 @@ dependencies = [
     "pathlib>=1.0.1",
     "pypdf>=5.6.0",
     "python-dotenv>=1.1.0",
+    "qdrant-client>=1.14.2",
     "streamlit>=1.45.1",
 ]

@@ -8,3 +8,7 @@ pypdf
 pathlib
 dotenv
 qdrant-client
+langchain
+langchain_core
+chromadb
+beautifulsoup4

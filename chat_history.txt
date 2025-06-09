@@ -1,0 +1,19 @@
+User: what is fs module?
+Assistant: The fs module is a built-in Node.js module that provides functions you can use to manipulate the file system. You can load it using require('fs'). An example of using the fs module is:
+
+```javascript
+const fs = require('fs')
+
+fs.writeFileSync('notes.txt', 'I live in Philadelphia')
+```
+
+This script writes a message to notes.txt. After you run the script, you’ll notice a new notes.txt file in your directory. Open it up and you’ll see, “I live in Philadelphia!”.
+
+To learn more, see page 10.
+
+User: what is nodejs
+Assistant: Node.js is explained in Lesson 3, including a brief tour of the V8 JavaScript engine, non-blocking I/O, and more. You can find this on page 8. There is also a presentation on page 9 that covers what Node.js is.
+
+User: what is nodejs
+Assistant: Node.js is further explained in lesson 3, on page 8. Lesson 4 on page 9, covers the major advantages of using Node.js.
+
