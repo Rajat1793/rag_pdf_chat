@@ -1,9 +1,9 @@
 import tempfile
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Qdrant
 import os
 import streamlit as st
 
@@ -30,14 +30,15 @@ def process_pdf(file_bytes, file_hash, file_name, collection_name):
     qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
     try:
-        vector_db = Qdrant.from_documents(
+        vector_db = QdrantVectorStore.from_documents(
             documents=split_docs,
             embedding=embedding_model,
             url=qdrant_url,
             api_key=qdrant_api_key,
             collection_name=collection_name,
-            force_recreate=True
+            force_recreate=False
         )
+        st.success(f"File indexed and added to vector store: {collection_name}")
     except Exception as e:
         st.error(f"Error during embedding or Qdrant upload: {e}")
         return None
