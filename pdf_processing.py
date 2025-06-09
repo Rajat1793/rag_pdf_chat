@@ -6,8 +6,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import os
 import streamlit as st
+from dotenv import load_dotenv
 
-api_key = os.getenv("GEMINI_API_KEY")
+load_dotenv()
+
+api_key = os.getenv("GOOGLE_API_KEY")
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004",api_key=api_key)
 
 def process_pdf(uploaded_file, collection_name):
@@ -31,6 +34,7 @@ def process_pdf(uploaded_file, collection_name):
     qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
     try:
+        print("Starting embedding...")
         vector_db = QdrantVectorStore.from_documents(
             documents=split_docs,
             embedding=embedding_model,
@@ -39,7 +43,7 @@ def process_pdf(uploaded_file, collection_name):
             collection_name=collection_name,
             force_recreate=False
         )
-        st.success(f"File indexed and added to vector store: {collection_name}")
+        print("Embedding complete, uploading to Qdrant...")
     except Exception as e:
         st.error(f"Error during embedding or Qdrant upload: {e}")
         return None
